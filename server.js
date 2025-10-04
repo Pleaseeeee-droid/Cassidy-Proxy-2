@@ -2,9 +2,13 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import cors from "cors"; // <-- ✅ ADD THIS LINE
+
 dotenv.config();
 
 const app = express();
+
+app.use(cors()); // <-- ✅ ADD THIS LINE TOO (before express.json)
 app.use(express.json());
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -13,6 +17,9 @@ const SECRET = process.env.PROXY_SECRET || "changeme123"; // must match your Rob
 
 // Quick test route
 app.get("/", (req, res) => res.send("✅ Cassidy Proxy running."));
+
+// Handle preflight requests
+app.options("*", cors()); // <-- ✅ ADD THIS LINE TOO
 
 app.post("/cassidy", async (req, res) => {
   if (req.get("X-Proxy-Key") !== SECRET)
