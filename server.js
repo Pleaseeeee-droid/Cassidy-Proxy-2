@@ -1,26 +1,27 @@
-// super simple Cassidy Proxy — by LUA Programming GOD 🌀
+// server.js
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import cors from "cors"; // <-- ✅ ADD THIS LINE
+import cors from "cors";        // <-- ADDED
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors()); // <-- ✅ ADD THIS LINE TOO (before express.json)
+app.use(cors());              // <-- ENABLE CORS FOR ALL ORIGINS
 app.use(express.json());
+
+// Quick health route
+app.get("/", (req, res) => res.send("✅ Cassidy Proxy running."));
+
+// allow OPTIONS preflight quickly (not strictly necessary with app.use(cors()), but safe)
+app.options("*", cors());
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const API_KEY = process.env.OPENROUTER_API_KEY;
-const SECRET = process.env.PROXY_SECRET || "changeme123"; // must match your Roblox script
+const SECRET = process.env.PROXY_SECRET || "changeme123";
 
-// Quick test route
-app.get("/", (req, res) => res.send("✅ Cassidy Proxy running."));
-
-// Handle preflight requests
-app.options("*", cors()); // <-- ✅ ADD THIS LINE TOO
-
+// Proxy endpoint
 app.post("/cassidy", async (req, res) => {
   if (req.get("X-Proxy-Key") !== SECRET)
     return res.status(401).json({ error: "Unauthorized." });
