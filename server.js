@@ -1,4 +1,4 @@
-// server.js — Cassidy Proxy (Final Fixed Version)
+// server.js — Cassidy Proxy (Vision-Enabled Edition)
 // by LUA Programming GOD 🌀
 
 import express from "express";
@@ -11,7 +11,6 @@ dotenv.config();
 const app = express();
 
 // --- CORS SETUP ---
-// Allow all origins (for testing / browser access)
 app.use(
   cors({
     origin: "*",
@@ -21,15 +20,15 @@ app.use(
 );
 
 // Parse JSON body
-app.use(express.json());
+app.use(express.json({ limit: "50mb" })); // allow large image payloads
 
 // --- HEALTH CHECK ---
 app.get("/", (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.send("✅ Cassidy Proxy running and CORS-enabled.");
+  res.send("✅ Cassidy Proxy running (Vision-Enabled).");
 });
 
-// Handle preflight (OPTIONS) manually to be safe
+// Handle preflight (OPTIONS)
 app.options("*", (req, res) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -42,9 +41,9 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const API_KEY = process.env.OPENROUTER_API_KEY;
 const SECRET = process.env.PROXY_SECRET || "changeme123";
 
-// --- PROXY ENDPOINT ---
+// --- TEXT CHAT ENDPOINT ---
 app.post("/cassidy", async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*"); // ensure every response passes CORS
+  res.setHeader("Access-Control-Allow-Origin", "*");
 
   if (req.get("X-Proxy-Key") !== SECRET) {
     return res.status(401).json({ error: "Unauthorized: Invalid proxy key." });
@@ -68,6 +67,59 @@ app.post("/cassidy", async (req, res) => {
   }
 });
 
+// --- NEW: VISION ENDPOINT ---
+app.post("/cassidy-vision", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  if (req.get("X-Proxy-Key") !== SECRET) {
+    return res.status(401).json({ error: "Unauthorized: Invalid proxy key." });
+  }
+
+  const { messages, image } = req.body;
+  if (!image) {
+    return res.status(400).json({ error: "Missing image base64 data." });
+  }
+
+  try {
+    const payload = {
+      model: "gpt-4o-mini", // vision-capable model on OpenRouter
+      messages: [
+        ...(messages || []),
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe what you see in this image briefly and clearly." },
+            { type: "image_url", image_url: `data:image/png;base64,${image}` },
+          ],
+        },
+      ],
+    };
+
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    // Return just the descriptive text
+    const visionText =
+      data?.choices?.[0]?.message?.content ||
+      "The vision model returned no description.";
+
+    res.status(200).json({ vision: visionText });
+  } catch (err) {
+    console.error("❌ Vision proxy error:", err);
+    res.status(500).json({ error: "Vision processing failed." });
+  }
+});
+
 // --- SERVER START ---
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`✅ Cassidy Proxy active on port ${port}`));
+app.listen(port, () =>
+  console.log(`✅ Cassidy Proxy (Vision-Enabled) active on port ${port}`)
+);
