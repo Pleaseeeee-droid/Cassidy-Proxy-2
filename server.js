@@ -1,4 +1,4 @@
-// server.js — Cassidy Proxy (Final Fixed Version)
+// server.js — Cassidy Proxy (Gemini 3 Pro Preview)
 // by LUA Programming GOD 🌀
 
 import express from "express";
@@ -10,8 +10,7 @@ dotenv.config();
 
 const app = express();
 
-// --- CORS SETUP ---
-// Allow all origins (for testing / browser access)
+// --- CORS ---
 app.use(
   cors({
     origin: "*",
@@ -20,54 +19,131 @@ app.use(
   })
 );
 
-// Parse JSON body
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 // --- HEALTH CHECK ---
 app.get("/", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.send("✅ Cassidy Proxy running and CORS-enabled.");
-});
-
-// Handle preflight (OPTIONS) manually to be safe
-app.options("*", (req, res) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, X-Proxy-Key");
-  res.sendStatus(204);
+  res.send("✅ Cassidy Proxy running (Gemini 3 Pro Preview).");
 });
 
 // --- CONFIG ---
-const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const API_KEY = process.env.OPENROUTER_API_KEY;
 const SECRET = process.env.PROXY_SECRET || "changeme123";
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = "gemini-3-pro-preview";
 
-// --- PROXY ENDPOINT ---
+const GEMINI_URL =
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+
+// --- MAIN TEXT ENDPOINT ---
 app.post("/cassidy", async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*"); // ensure every response passes CORS
-
   if (req.get("X-Proxy-Key") !== SECRET) {
-    return res.status(401).json({ error: "Unauthorized: Invalid proxy key." });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
-    const response = await fetch(API_URL, {
+    const { messages } = req.body;
+
+    if (!Array.isArray(messages)) {
+      return res.status(400).json({ error: "Invalid messages format" });
+    }
+
+    // 🔹 Flatten messages into ONE prompt (Gemini requirement)
+    let prompt = "";
+    for (const msg of messages) {
+      if (msg?.content) {
+        prompt += msg.content + "\n\n";
+      }
+    }
+
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.8,
+        topP: 0.95,
+        maxOutputTokens: 800
+      }
+    };
+
+    const response = await fetch(GEMINI_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + API_KEY,
-      },
-      body: JSON.stringify(req.body),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    const data = await response.text();
-    res.status(200).send(data);
+    const data = await response.json();
+
+    const reply =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      "*Cassidy remains silent.*";
+
+    res.json({ reply });
+
   } catch (err) {
-    console.error("❌ Proxy error:", err);
-    res.status(500).json({ error: "Proxy error occurred." });
+    console.error("❌ Gemini error:", err);
+    res.status(500).json({ error: "Gemini request failed" });
+  }
+});
+
+// --- OPTIONAL: VISION ENDPOINT ---
+app.post("/cassidy-vision", async (req, res) => {
+  if (req.get("X-Proxy-Key") !== SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { image, context } = req.body;
+  if (!image) {
+    return res.status(400).json({ error: "Missing image data" });
+  }
+
+  try {
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: context || "Describe what you see through Samuel's eyes." },
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: image
+              }
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 300
+      }
+    };
+
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    const vision =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      "I see nothing but distortion.";
+
+    res.json({ vision });
+
+  } catch (err) {
+    console.error("❌ Gemini vision error:", err);
+    res.status(500).json({ error: "Vision request failed" });
   }
 });
 
 // --- SERVER START ---
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`✅ Cassidy Proxy active on port ${port}`));
+app.listen(port, () =>
+  console.log(`✅ Cassidy Proxy (Gemini 3 Pro Preview) running on port ${port}`)
+);
