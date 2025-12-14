@@ -16,9 +16,9 @@ const port = process.env.PORT || 3000;
 // --- CONFIG ---
 // We use gemini-1.5-pro for "High Reasoning". 
 // You can switch this to "gemini-2.0-flash-thinking-exp-1219" if you have access to the experimental thinking models.
-const MODEL_NAME = "gemini-1.5-pro"; 
+const MODEL_NAME = "gemini-3-pro-preview"; 
 const API_KEY = process.env.GEMINI_API_KEY; // Make sure this is in your .env
-const SECRET = process.env.PROXY_SECRET || "changeme123";
+const SECRET = process.env.PROXY_SECRET || "Cassidy123";
 const MEMORY_FILE = path.resolve("memory.json");
 
 // Initialize Google AI
